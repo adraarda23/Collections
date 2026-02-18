@@ -1,4 +1,4 @@
-# Proje Görevi — Borsa Veri İşleme ve Analiz Platformu
+"# Proje Görevi — Borsa Veri İşleme ve Analiz Platformu
 
 > **Konu:** Gerçek bir senaryo üzerinden Collections, Stream API ve Parallel Programming'i aynı anda pekiştir.
 > **Süre:** Kendi hızında ilerle. Her adımı bitirmeden bir sonrakine geçme.
