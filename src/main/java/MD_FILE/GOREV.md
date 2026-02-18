@@ -15,15 +15,168 @@ Her adım bir öncekinin üzerine inşa edilir. Proje sonunda elimde çalışan,
 
 ---
 
-## Veri Modeli (Herkese Hazır — Değiştirme)
+## Veri Modeli
 
-Aşağıdaki sınıfları `org.example` paketinde oluştur. İçlerini kendin dolduracaksın.
+### Gerçek Dünya Karşılıkları
+
+Borsa uygulaması 4 ana kavram üzerine kurulu. Her birini gerçek dünyadan bir örnekle düşün:
 
 ```
-Hisse       → sembol, şirketAdı, sektör, fiyat, günlükDeğişimYüzdesi, hacim
-Portfoy     → sahipAdı, hisseler (Hisse → miktar), nakit
-Islem       → islemId, hisse, islemTipi (AL/SAT), miktar, fiyat, zaman
-PiyasaOzeti → tarih, enCokYukselenler, enCokDusenler, enCokIslemGorenler
+Hisse       →  Borsada alınıp satılan bir şirketin kağıdı          (örn: THYAO)
+Portfoy     →  Bir yatırımcının elinde tuttuğu hisseler ve nakiti   (örn: Ali'nin hesabı)
+Islem       →  Gerçekleşmiş bir alış veya satış kaydı              (örn: Ali 100 THYAO aldı)
+PiyasaOzeti →  Günün kapanışında oluşan istatistik raporu          (örn: bugünün kazananları)
+```
+
+---
+
+### Sınıf Detayları
+
+#### `Hisse` — Bir şirkete ait hisse senedi
+
+```java
+public class Hisse {
+    String sembol;               // Borsadaki kısa kodu         → "THYAO"
+    String sirketAdi;            // Şirketin tam adı            → "Türk Hava Yolları"
+    String sektor;               // Faaliyet alanı              → "Havacılık"
+    double fiyat;                // Anlık fiyat (TL)            → 245.80
+    double gunlukDegisimYuzdesi; // Önceki güne göre değişim    → +3.2 (yüzde olarak sakla, % işareti değil)
+    long   hacim;                // Gün içinde el değiştiren lot sayısı → 12_500_000
+}
+```
+
+> `hacim` neden önemli? Yüksek hacim = o hisse çok işlem görüyor = likit demek.
+> `gunlukDegisimYuzdesi` pozitifse hisse yükselmiş, negatifse düşmüş.
+
+---
+
+#### `Portfoy` — Bir yatırımcının varlık tablosu
+
+```java
+public class Portfoy {
+    String              sahipAdi;  // Yatırımcının adı               → "Ali Yılmaz"
+    Map<String, Integer> pozisyonlar; // sembol → kaç lot tutuyor     → {"THYAO": 100, "GARAN": 250}
+    double              nakit;     // Henüz hisseye dönüşmemiş para  → 15_000.0 (TL)
+}
+```
+
+> `pozisyonlar` neden `Map<String, Integer>`?
+> Anahtar sembol (benzersiz), değer lot adedi. Ali'nin portföyünde THYAO'dan kaç tane var sorusuna O(1)'de cevap verir.
+>
+> Portföy değeri = her sembol için `(fiyat × lot adedi)` toplamı + nakit.
+> Bunun için `Portfoy` tek başına yetmez; `Hisse` verisine de ihtiyaç var çünkü anlık fiyat orada.
+
+---
+
+#### `Islem` — Gerçekleşmiş bir alış/satış kaydı
+
+```java
+public enum IslemTipi { AL, SAT }
+
+public class Islem {
+    String    islemId;    // Benzersiz işlem kimliği              → "TXN-00042"
+    String    sembol;     // Hangi hisse işlem gördü              → "THYAO"
+                          // (Hisse nesnesi değil, sadece sembol — neden? ↓)
+    IslemTipi tip;        // Alış mı satış mı                     → IslemTipi.AL
+    int       miktar;     // Kaç lot                              → 100
+    double    fiyat;      // İşlemin gerçekleştiği anlık fiyat    → 245.80
+                          // (şu anki fiyattan farklı olabilir!)
+    LocalDateTime zaman;  // İşlem zamanı                        → 2024-03-15T10:23:45
+}
+```
+
+> `sembol` neden `Hisse` nesnesi değil de `String`?
+> İşlem geçmişe ait bir kayıttır. O sıradaki fiyat zaten `fiyat` alanında saklanıyor.
+> Hisse nesnesini tutsan ve fiyatı sonradan güncelleşen nesneyi referans etsen, tarihi veri bozulur.
+
+---
+
+#### `PiyasaOzeti` — Günün kapanış raporu
+
+```java
+public class PiyasaOzeti {
+    LocalDate    tarih;               // Hangi güne ait               → 2024-03-15
+    List<Hisse>  enCokYukselenler;    // O gün en çok % artan 5 hisse
+    List<Hisse>  enCokDusenler;       // O gün en çok % düşen 5 hisse
+    List<Hisse>  enCokIslemGorenler;  // Hacme göre en çok el değiştiren 5 hisse
+    double       toplamPiyasaDegeri;  // Tüm hisselerin fiyat × hacim toplamı
+}
+```
+
+> Bu sınıfı sen üretmeyeceksin — Stream API ile hesaplayıp dolduracaksın (Adım 2-3).
+
+---
+
+### Nesneler Arası İlişki
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    HisseSenediPiyasasi                   │
+│  (Tüm sistemi tutan ana sınıf)                          │
+│                                                         │
+│  hisseler: Map<sembol, Hisse>  ←──── 15 hisse senedi    │
+│  portfoyler: List<Portfoy>     ←──── N yatırımcı        │
+│  islemGecmisi: Queue<Islem>    ←──── son N işlem kaydı  │
+└─────────────────────────────────────────────────────────┘
+          │                    │
+          │                    │
+          ▼                    ▼
+   ┌────────────┐       ┌─────────────────────────┐
+   │   Hisse    │       │        Portfoy           │
+   │            │       │                          │
+   │ sembol     │◄──────│ pozisyonlar:             │
+   │ sirketAdi  │       │   Map<String, Integer>   │
+   │ sektor     │       │   ("THYAO" → 100)        │
+   │ fiyat      │       │                          │
+   │ degisim    │       │ Portföy değeri hesabı:   │
+   │ hacim      │       │   pozisyonlar üzerinden  │
+   └────────────┘       │   hisseler map'inden     │
+          ▲             │   fiyat çekilerek yapılır│
+          │             └─────────────────────────┘
+          │
+   ┌────────────┐
+   │   Islem    │
+   │            │
+   │ sembol ────┼──► hisseler.get(sembol) ile erişilir
+   │ tip        │    (doğrudan referans yok, gevşek bağlı)
+   │ miktar     │
+   │ fiyat      │    NOT: fiyat buraya anlık fiyatı kopyalar
+   │ zaman      │    çünkü 1 hafta sonra bakınca hangi
+   └────────────┘    fiyattan alındığını görmek isteriz
+```
+
+---
+
+### İş Kuralları (Bunları Kodlarken Aklında Tut)
+
+| Kural | Açıklama |
+|-------|----------|
+| Sembol benzersizdir | Aynı sembol ile iki farklı `Hisse` olamaz |
+| Fiyat her zaman pozitiftir | `fiyat <= 0` geçersiz veridir |
+| `Islem.fiyat` sabit kalır | İşlem kaydedildikten sonra `Hisse.fiyat` değişse de `Islem.fiyat` değişmez |
+| Portföyde olmayan hisse satılamaz | SAT işlemi öncesi `pozisyonlar.get(sembol) >= miktar` kontrolü yapılmalı |
+| Yetersiz nakit ile alım yapılamaz | AL işlemi öncesi `nakit >= fiyat * miktar` kontrolü yapılmalı |
+| `PiyasaOzeti` sadece okunur | Günün anlık verisinden türetilir, dışarıdan set edilmez |
+
+---
+
+### Örnek Senaryo (Kafanda Canlandır)
+
+```
+1. Ali'nin portföyü: {"THYAO": 100 lot}, nakit: 50.000 TL
+
+2. THYAO fiyatı 245.80 TL
+   → Ali'nin portföy değeri = (100 × 245.80) + 50.000 = 74.580 TL
+
+3. Ali 50 lot GARAN alıyor (fiyat: 89.40 TL)
+   → Maliyet: 50 × 89.40 = 4.470 TL
+   → Nakit: 50.000 - 4.470 = 45.530 TL
+   → pozisyonlar: {"THYAO": 100, "GARAN": 50}
+   → Yeni bir Islem nesnesi oluşturulur ve islemGecmisi kuyruğuna eklenir
+
+4. Gün biter, PiyasaOzeti hesaplanır:
+   → enCokYukselenler: Stream ile gunlukDegisimYuzdesi'ne göre sıralanır
+   → toplamPiyasaDegeri: Stream reduce ile hesaplanır
 ```
 
 ---
