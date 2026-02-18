@@ -21,5 +21,20 @@ public class Main {
         piyasa.addHisse("SAHOL", new Hisse("SAHOL", "Sabancı Holding",    "Holding",         109.70, -1.7,  5_500_000));
         piyasa.addHisse("VESTL", new Hisse("VESTL", "Vestel",             "Teknoloji",        53.30,  6.2,  4_200_000));
 
+        System.out.println(piyasa.hisseGetir("VESTL").orElseThrow(()-> new RuntimeException("Hisse YOk")));
+        System.out.println(piyasa.getSektorler());
+        System.out.println(piyasa.toplamHisseSayisi());
+        //piyasa.sektorGetir("Havacılık").forEach(s -> System.out.println(s.getSirketAdi()));
+
+
+        piyasa.pahalıHisseler(100).forEach(s -> System.out.println(s.getSirketAdi()));
+        piyasa.sektorOrtalamaFiyat().values().forEach(System.out::println);
+
+        System.out.println(piyasa.tumSemboller());
+
+        piyasa.sektorHisseSayisi().forEach((k,v) -> System.out.println(k + " " + v));
+
+        System.out.println(piyasa.toplamHisseDegeri());
+
     }
 }
